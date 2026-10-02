@@ -202,13 +202,13 @@ function PmSummary({
     const gapRunner = runnerUp(r.gap_type_probabilities, r.gap_type);
     if ((r.gap_type_confidence ?? 1) < threshold && gapRunner) {
         classifyQuestions.push(
-            `Gap type: ${r.gap_type} (${pct(r.gap_type_probabilities?.[r.gap_type ?? ""])}) or ${gapRunner.split(" ")[0]}?`,
+            `Gap type: ${r.gap_type} (${pct(r.gap_type_probabilities?.[r.gap_type ?? ""])}) or ${gapRunner.replace(/ ([\d.]+)$/, (_, n) => ` (${pct(Number(n))})`)}?`,
         );
     }
     const rootRunner = runnerUp(r.root_origin_probabilities, r.root_origin);
     if ((r.root_origin_confidence ?? 1) < threshold && rootRunner) {
         classifyQuestions.push(
-            `Root origin: ${r.root_origin} (${pct(r.root_origin_probabilities?.[r.root_origin ?? ""])}) or ${rootRunner.replace(/ [\d.]+$/, "")}?`,
+            `Root origin: ${r.root_origin} (${pct(r.root_origin_probabilities?.[r.root_origin ?? ""])}) or ${rootRunner.replace(/ ([\d.]+)$/, (_, n) => ` (${pct(Number(n))})`)}?`,
         );
     }
 
