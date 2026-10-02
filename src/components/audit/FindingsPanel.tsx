@@ -22,6 +22,8 @@ type ClassifyResult = {
     classified_by?: string;
     error?: string;
     message?: string;
+    gap_type_definition?: string;
+    root_origin_definition?: string;
 };
 
 type SeverityResult = {
@@ -39,6 +41,19 @@ type SeverityResult = {
     severity_rubric?: { version?: string };
     error?: string;
     message?: string;
+    decision_impact_score?: number;
+    spread_score?: number;
+    persistence_score?: number;
+    what_if?: {
+        dimension: string;
+        current: string;
+        current_probability: number;
+        alternative: string;
+        alternative_probability: number;
+        alternative_score: number;
+        alternative_band: string;
+        band_changes: boolean;
+    }[];
 };
 
 // Same requirement + same evidence = same finding
@@ -161,6 +176,107 @@ function SeveritySection({ s }: { s: SeverityResult }) {
     );
 }
 
+const DIMENSION_LABEL: Record<string, string> = {
+    decision_impact: "Decision impact",
+    spread: "Spread",
+    persistence: "Persistence",
+};
+
+function pct(value: number | undefined): string {
+    return `${Math.round((value ?? 0) * 100)}%`;
+}
+
+function PmSummary({
+    a,
+    r,
+    s,
+}: {
+    a: FindingArgs;
+    r: ClassifyResult;
+    s?: SeverityResult;
+}) {
+    const threshold = r.threshold_used ?? 0.7;
+
+    // Classification questions for the reviewer (only where Jev was unsure)
+    const classifyQuestions: string[] = [];
+    const gapRunner = runnerUp(r.gap_type_probabilities, r.gap_type);
+    if ((r.gap_type_confidence ?? 1) < threshold && gapRunner) {
+        classifyQuestions.push(
+            `Gap type: ${r.gap_type} (${pct(r.gap_type_probabilities?.[r.gap_type ?? ""])}) or ${gapRunner.split(" ")[0]}?`,
+        );
+    }
+    const rootRunner = runnerUp(r.root_origin_probabilities, r.root_origin);
+    if ((r.root_origin_confidence ?? 1) < threshold && rootRunner) {
+        classifyQuestions.push(
+            `Root origin: ${r.root_origin} (${pct(r.root_origin_probabilities?.[r.root_origin ?? ""])}) or ${rootRunner.replace(/ [\d.]+$/, "")}?`,
+        );
+    }
+
+    const hasFormula =
+        s?.persistence_score && s?.spread_score && s?.decision_impact_score;
+
+    return (
+        <div className="mt-2 space-y-1.5 rounded-md bg-blue-50 p-2.5 text-[11px] leading-snug text-gray-800">
+            <div className="text-[10px] font-semibold tracking-wide text-blue-800 uppercase">
+                Plain-language summary
+            </div>
+
+            <div>
+                <span className="font-semibold">What we found: </span>
+                Your standard requires: {a.requirement} The evidence shows: {a.observed}.
+            </div>
+
+            <div>
+                <span className="font-semibold">What kind of problem: </span>
+                <em>{r.gap_type}</em>
+                {r.gap_type_definition ? ` — ${r.gap_type_definition}` : ""} (
+                {pct(r.gap_type_probabilities?.[r.gap_type ?? ""])} likely).
+            </div>
+
+            <div>
+                <span className="font-semibold">Why it happened: </span>
+                <em>{r.root_origin}</em>
+                {r.root_origin_definition ? ` — ${r.root_origin_definition}` : ""} (
+                {pct(r.root_origin_probabilities?.[r.root_origin ?? ""])} likely).
+            </div>
+
+            {s && !s.error && (
+                <div>
+                    <span className="font-semibold">How serious: </span>
+                    <strong>{s.severity}</strong>
+                    {hasFormula
+                        ? `, scoring ${s.persistence_score} × ${s.spread_score} × ${s.decision_impact_score} = ${s.severity_score}.`
+                        : `, score ${s.severity_score}.`}
+                </div>
+            )}
+
+            {(classifyQuestions.length > 0 || (s?.what_if?.length ?? 0) > 0) ? (
+                <div>
+                    <div className="font-semibold">Where your judgment is needed:</div>
+                    <ul className="mt-0.5 list-disc space-y-0.5 pl-4">
+                        {classifyQuestions.map((q) => (
+                            <li key={q}>{q}</li>
+                        ))}
+                        {s?.what_if?.map((w) => (
+                            <li key={w.dimension}>
+                                {DIMENSION_LABEL[w.dimension] ?? w.dimension}: {w.current} (
+                                {pct(w.current_probability)}) or {w.alternative} (
+                                {pct(w.alternative_probability)})? If {w.alternative}: score{" "}
+                                {w.alternative_score} → <strong>{w.alternative_band}</strong>
+                                {w.band_changes ? " (changes the rating)" : " (same rating)"}.
+                            </li>
+                        ))}
+                    </ul>
+                </div>
+            ) : (
+                <div className="text-green-700">
+                    No judgment calls needed: every rating is above the confidence threshold.
+                </div>
+            )}
+        </div>
+    );
+}
+
 export function FindingsPanel() {
     const stream = useStreamContext();
 
@@ -236,6 +352,8 @@ export function FindingsPanel() {
                                     <span className="font-medium">Observed:</span> {a.observed}
                                 </div>
                             )}
+
+                            {r && !r.error && <PmSummary a={a} r={r} s={s} />}
 
                             {!r && (
                                 <div className="mt-2 animate-pulse text-xs text-blue-600">
