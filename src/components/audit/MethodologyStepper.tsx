@@ -2,6 +2,7 @@
 
 import { useStreamContext } from "@/providers/Stream";
 
+
 const STAGES = [
     { key: "baseline", label: "1 · Baseline" },
     { key: "charter", label: "2 · Charter" },
@@ -65,7 +66,7 @@ export function MethodologyStepper() {
 
     // 3. Draw the panel
     return (
-        <div className="w-64 shrink-0 border-1 bg-gray-50 p-4">
+        <div className="p-4">
             <h2 className="mb-4 text-sm font-semibold text-gray-900">
                 IEM-PM Methodology
             </h2>

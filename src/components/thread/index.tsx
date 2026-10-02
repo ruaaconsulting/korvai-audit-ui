@@ -29,6 +29,7 @@ import ThreadHistory from "./history";
 import { toast } from "sonner";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { MethodologyStepper } from "../audit/MethodologyStepper";
+import { FindingsPanel } from "../audit/FindingsPanel";
 import { Label } from "../ui/label";
 import { Switch } from "../ui/switch";
 import { GitHubSVG } from "../icons/github";
@@ -309,7 +310,7 @@ export function Thread() {
 
       <div
         className={cn(
-          "grid w-full grid-cols-[1fr_0fr] transition-all duration-500",
+          "grid w-full min-w-0 grid-cols-[1fr_0fr] overflow-hidden transition-all duration-500",
           artifactOpen && "grid-cols-[3fr_2fr]",
         )}
       >
@@ -586,7 +587,10 @@ export function Thread() {
           </div>
         </div>
       </div>
-      <MethodologyStepper />
+      <div className="h-screen w-80 shrink-0 overflow-y-auto overscroll-contain border-l bg-gray-50">
+        <MethodologyStepper />
+        <FindingsPanel />
+      </div>
     </div>
   );
 }
