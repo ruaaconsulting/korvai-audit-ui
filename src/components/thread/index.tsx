@@ -28,6 +28,7 @@ import { StickToBottom, useStickToBottomContext } from "use-stick-to-bottom";
 import ThreadHistory from "./history";
 import { toast } from "sonner";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
+import { MethodologyStepper } from "../audit/MethodologyStepper";
 import { Label } from "../ui/label";
 import { Switch } from "../ui/switch";
 import { GitHubSVG } from "../icons/github";
@@ -585,6 +586,7 @@ export function Thread() {
           </div>
         </div>
       </div>
+      <MethodologyStepper />
     </div>
   );
 }
