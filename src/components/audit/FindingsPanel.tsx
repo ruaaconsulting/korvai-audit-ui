@@ -2,6 +2,8 @@
 
 import { useStreamContext } from "@/providers/Stream";
 
+/* ───────────── Types ───────────── */
+
 type FindingArgs = {
     requirement?: string;
     evidence?: string;
@@ -11,9 +13,11 @@ type FindingArgs = {
 
 type ClassifyResult = {
     gap_type?: string;
+    gap_type_definition?: string;
     gap_type_confidence?: number;
     gap_type_probabilities?: Record<string, number>;
     root_origin?: string;
+    root_origin_definition?: string;
     root_origin_confidence?: number;
     root_origin_probabilities?: Record<string, number>;
     needs_review?: boolean;
@@ -22,39 +26,43 @@ type ClassifyResult = {
     classified_by?: string;
     error?: string;
     message?: string;
-    gap_type_definition?: string;
-    root_origin_definition?: string;
 };
 
 type SeverityResult = {
-    severity?: string;
-    severity_score?: number;
-    floor_applied?: boolean;
-    decision_impact?: string;
-    decision_impact_confidence?: number;
-    spread?: string;
-    spread_confidence?: number;
-    persistence?: string;
-    persistence_confidence?: number;
+    severity?: number;
+    severity_label?: string;
+    severity_confidence?: number;
+    severity_probabilities?: Record<string, number>;
+    severity_runner_up?: {
+        severity: number;
+        label: string;
+        probability: number;
+        approval_required: boolean;
+    } | null;
+    human_approval_required?: boolean;
     needs_review?: boolean;
     threshold_used?: number;
-    severity_rubric?: { version?: string };
+    calibration?: {
+        band?: string;
+        score?: number;
+        floor_applied?: boolean;
+        decision_impact?: string;
+        decision_impact_score?: number;
+        decision_impact_confidence?: number;
+        spread?: string;
+        spread_score?: number;
+        spread_confidence?: number;
+        persistence?: string;
+        persistence_score?: number;
+        persistence_confidence?: number;
+        rubric?: { version?: string };
+    };
+    severity_scale?: { version?: string };
     error?: string;
     message?: string;
-    decision_impact_score?: number;
-    spread_score?: number;
-    persistence_score?: number;
-    what_if?: {
-        dimension: string;
-        current: string;
-        current_probability: number;
-        alternative: string;
-        alternative_probability: number;
-        alternative_score: number;
-        alternative_band: string;
-        band_changes: boolean;
-    }[];
 };
+
+/* ───────────── Helpers ───────────── */
 
 // Same requirement + same evidence = same finding
 function findingKey(args: FindingArgs): string {
@@ -76,25 +84,32 @@ function parseResult<T>(content: unknown): T | null {
     }
 }
 
-// The second most likely label, e.g. "Ignored 0.39"
-function runnerUp(
+// Second most likely label, as { label, probability }
+function runnerUpOf(
     probs: Record<string, number> | undefined,
     winner: string | undefined,
-): string | null {
+): { label: string; probability: number } | null {
     if (!probs) return null;
     const sorted = Object.entries(probs)
         .filter(([label]) => label !== winner)
         .sort((a, b) => b[1] - a[1]);
     if (!sorted.length || sorted[0][1] === 0) return null;
-    return `${sorted[0][0]} ${sorted[0][1].toFixed(2)}`;
+    return { label: sorted[0][0], probability: sorted[0][1] };
 }
 
-const BAND_STYLE: Record<string, string> = {
-    Low: "bg-gray-100 text-gray-800",
-    Medium: "bg-yellow-100 text-yellow-800",
-    High: "bg-orange-100 text-orange-800",
-    Critical: "bg-red-100 text-red-800",
+function pct(value: number | undefined): string {
+    return `${Math.round((value ?? 0) * 100)}%`;
+}
+
+const SEVERITY_STYLE: Record<number, string> = {
+    1: "bg-gray-100 text-gray-700",
+    2: "bg-blue-100 text-blue-800",
+    3: "bg-yellow-100 text-yellow-800",
+    4: "bg-orange-100 text-orange-800",
+    5: "bg-red-100 text-red-800",
 };
+
+/* ───────────── Confidence bar ───────────── */
 
 function ConfidenceBar({
     label,
@@ -134,57 +149,56 @@ function ConfidenceBar({
     );
 }
 
+/* ───────────── Severity section (§9.1 official + Appendix D reference) ───────────── */
+
 function SeveritySection({ s }: { s: SeverityResult }) {
     const threshold = s.threshold_used ?? 0.7;
-    const band = s.severity ?? "Unknown";
+    const c = s.calibration ?? {};
+    const r = s.severity_runner_up;
     return (
         <div className="mt-3 border-t pt-2">
             <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-gray-900">Severity</span>
+                <span className="text-xs font-semibold text-gray-900">Severity (§9.1)</span>
                 <span
-                    className={`rounded px-1.5 py-0.5 text-[11px] font-semibold ${BAND_STYLE[band] ?? "bg-gray-100 text-gray-800"
+                    className={`rounded px-1.5 py-0.5 text-[11px] font-semibold ${SEVERITY_STYLE[s.severity ?? 0] ?? "bg-gray-100 text-gray-800"
                         }`}
                 >
-                    {band} · {s.severity_score}
+                    {s.severity} · {s.severity_label}
                 </span>
             </div>
-            <div className="mt-0.5 text-[10px] text-gray-500">
-                Persistence × Spread × Decision Impact
-                {s.floor_applied && " · raised by floor rule"}
-            </div>
+
             <ConfidenceBar
-                label={`Decision impact: ${s.decision_impact}`}
-                value={s.decision_impact_confidence ?? 0}
+                label={`Severity ${s.severity}: ${s.severity_label}`}
+                value={s.severity_confidence ?? 0}
                 threshold={threshold}
+                runner={r ? `${r.severity} ${r.label} (${pct(r.probability)})` : null}
             />
-            <ConfidenceBar
-                label={`Spread: ${s.spread}`}
-                value={s.spread_confidence ?? 0}
-                threshold={threshold}
-            />
-            <ConfidenceBar
-                label={`Persistence: ${s.persistence}`}
-                value={s.persistence_confidence ?? 0}
-                threshold={threshold}
-            />
-            {s.severity_rubric?.version && (
-                <div className="mt-1 text-[10px] text-gray-500">
-                    Rubric v{s.severity_rubric.version}
+
+            {s.human_approval_required && (
+                <div className="mt-2 rounded bg-orange-50 px-2 py-1 text-[11px] font-medium text-orange-800">
+                    Severity 4–5: human approval required before this finding is final (§10.2.3)
                 </div>
             )}
+
+            <div className="mt-2 rounded bg-gray-50 px-2 py-1.5">
+                <div className="text-[10px] font-semibold text-gray-600">
+                    Calibration reference (Appendix D, not the severity)
+                </div>
+                <div className="font-mono text-[10px] text-gray-600">
+                    {c.persistence} {c.persistence_score} × {c.spread} {c.spread_score} ×{" "}
+                    {c.decision_impact} {c.decision_impact_score} = {c.score} → {c.band}
+                    {c.floor_applied && " (floor rule)"}
+                </div>
+            </div>
+
+            <div className="mt-1 text-[10px] text-gray-500">
+                Scale v{s.severity_scale?.version} · Rubric v{c.rubric?.version}
+            </div>
         </div>
     );
 }
 
-const DIMENSION_LABEL: Record<string, string> = {
-    decision_impact: "Decision impact",
-    spread: "Spread",
-    persistence: "Persistence",
-};
-
-function pct(value: number | undefined): string {
-    return `${Math.round((value ?? 0) * 100)}%`;
-}
+/* ───────────── Plain-language summary ───────────── */
 
 function PmSummary({
     a,
@@ -196,24 +210,32 @@ function PmSummary({
     s?: SeverityResult;
 }) {
     const threshold = r.threshold_used ?? 0.7;
+    const questions: string[] = [];
 
-    // Classification questions for the reviewer (only where Jev was unsure)
-    const classifyQuestions: string[] = [];
-    const gapRunner = runnerUp(r.gap_type_probabilities, r.gap_type);
+    // Classification: only where Jev was unsure
+    const gapRunner = runnerUpOf(r.gap_type_probabilities, r.gap_type);
     if ((r.gap_type_confidence ?? 1) < threshold && gapRunner) {
-        classifyQuestions.push(
-            `Gap type: ${r.gap_type} (${pct(r.gap_type_probabilities?.[r.gap_type ?? ""])}) or ${gapRunner.replace(/ ([\d.]+)$/, (_, n) => ` (${pct(Number(n))})`)}?`,
+        questions.push(
+            `Gap type: ${r.gap_type} (${pct(r.gap_type_probabilities?.[r.gap_type ?? ""])}) or ${gapRunner.label} (${pct(gapRunner.probability)})?`,
         );
     }
-    const rootRunner = runnerUp(r.root_origin_probabilities, r.root_origin);
+    const rootRunner = runnerUpOf(r.root_origin_probabilities, r.root_origin);
     if ((r.root_origin_confidence ?? 1) < threshold && rootRunner) {
-        classifyQuestions.push(
-            `Root origin: ${r.root_origin} (${pct(r.root_origin_probabilities?.[r.root_origin ?? ""])}) or ${rootRunner.replace(/ ([\d.]+)$/, (_, n) => ` (${pct(Number(n))})`)}?`,
+        questions.push(
+            `Root origin: ${r.root_origin} (${pct(r.root_origin_probabilities?.[r.root_origin ?? ""])}) or ${rootRunner.label} (${pct(rootRunner.probability)})?`,
         );
     }
 
-    const hasFormula =
-        s?.persistence_score && s?.spread_score && s?.decision_impact_score;
+    // Severity: only where Jev was unsure
+    if (s && !s.error && s.needs_review && s.severity_runner_up) {
+        const ru = s.severity_runner_up;
+        questions.push(
+            `Severity: ${s.severity} ${s.severity_label} (${pct(s.severity_probabilities?.[s.severity_label ?? ""])}) or ${ru.severity} ${ru.label} (${pct(ru.probability)})?` +
+            (ru.approval_required !== s.human_approval_required
+                ? " This changes whether human approval is required."
+                : ""),
+        );
+    }
 
     return (
         <div className="mt-2 space-y-1.5 rounded-md bg-blue-50 p-2.5 text-[11px] leading-snug text-gray-800">
@@ -243,28 +265,21 @@ function PmSummary({
             {s && !s.error && (
                 <div>
                     <span className="font-semibold">How serious: </span>
-                    <strong>{s.severity}</strong>
-                    {hasFormula
-                        ? `, scoring ${s.persistence_score} × ${s.spread_score} × ${s.decision_impact_score} = ${s.severity_score}.`
-                        : `, score ${s.severity_score}.`}
+                    <strong>
+                        Severity {s.severity} ({s.severity_label})
+                    </strong>{" "}
+                    ({pct(s.severity_probabilities?.[s.severity_label ?? ""])} likely).
+                    {s.human_approval_required &&
+                        " A real person must approve this finding before it is final."}
                 </div>
             )}
 
-            {(classifyQuestions.length > 0 || (s?.what_if?.length ?? 0) > 0) ? (
+            {questions.length > 0 ? (
                 <div>
                     <div className="font-semibold">Where your judgment is needed:</div>
                     <ul className="mt-0.5 list-disc space-y-0.5 pl-4">
-                        {classifyQuestions.map((q) => (
+                        {questions.map((q) => (
                             <li key={q}>{q}</li>
-                        ))}
-                        {s?.what_if?.map((w) => (
-                            <li key={w.dimension}>
-                                {DIMENSION_LABEL[w.dimension] ?? w.dimension}: {w.current} (
-                                {pct(w.current_probability)}) or {w.alternative} (
-                                {pct(w.alternative_probability)})? If {w.alternative}: score{" "}
-                                {w.alternative_score} → <strong>{w.alternative_band}</strong>
-                                {w.band_changes ? " (changes the rating)" : " (same rating)"}.
-                            </li>
                         ))}
                     </ul>
                 </div>
@@ -276,6 +291,8 @@ function PmSummary({
         </div>
     );
 }
+
+/* ───────────── Findings panel ───────────── */
 
 export function FindingsPanel() {
     const stream = useStreamContext();
@@ -332,6 +349,8 @@ export function FindingsPanel() {
                     const s = severity.get(key);
                     const threshold = r?.threshold_used ?? 0.7;
                     const needsReview = !!r?.needs_review || !!s?.needs_review;
+                    const gapRunner = runnerUpOf(r?.gap_type_probabilities, r?.gap_type);
+                    const rootRunner = runnerUpOf(r?.root_origin_probabilities, r?.root_origin);
 
                     return (
                         <div key={key} className="rounded-lg border bg-white p-3 shadow-sm">
@@ -339,11 +358,18 @@ export function FindingsPanel() {
                                 <div className="text-xs font-semibold text-gray-900">
                                     Finding {i + 1}
                                 </div>
-                                {needsReview && (
-                                    <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-800">
-                                        Needs review
-                                    </span>
-                                )}
+                                <div className="flex gap-1">
+                                    {s?.human_approval_required && (
+                                        <span className="rounded bg-orange-100 px-1.5 py-0.5 text-[10px] font-medium text-orange-800">
+                                            Approval required
+                                        </span>
+                                    )}
+                                    {needsReview && (
+                                        <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-800">
+                                            Needs review
+                                        </span>
+                                    )}
+                                </div>
                             </div>
 
                             <div className="mt-1 text-[11px] text-gray-600">{a.requirement}</div>
@@ -373,13 +399,13 @@ export function FindingsPanel() {
                                         label={`Gap type: ${r.gap_type}`}
                                         value={r.gap_type_confidence ?? 0}
                                         threshold={threshold}
-                                        runner={runnerUp(r.gap_type_probabilities, r.gap_type)}
+                                        runner={gapRunner ? `${gapRunner.label} (${pct(gapRunner.probability)})` : null}
                                     />
                                     <ConfidenceBar
                                         label={`Root origin: ${r.root_origin}`}
                                         value={r.root_origin_confidence ?? 0}
                                         threshold={threshold}
-                                        runner={runnerUp(r.root_origin_probabilities, r.root_origin)}
+                                        runner={rootRunner ? `${rootRunner.label} (${pct(rootRunner.probability)})` : null}
                                     />
                                 </>
                             )}
