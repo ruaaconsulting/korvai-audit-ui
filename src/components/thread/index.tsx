@@ -31,6 +31,9 @@ import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { MethodologyStepper } from "../audit/MethodologyStepper";
 import { FindingsPanel } from "../audit/FindingsPanel";
 import { MeasurePanel } from "../audit/MeasurePanel";
+import { ReportPanel } from "../audit/ReportPanel";
+import { KorvaiTopBar } from "../audit/KorvaiTopBar";
+import { ExecutionTrace } from "../audit/ExecutionTrace";
 import { Label } from "../ui/label";
 import { Switch } from "../ui/switch";
 import { GitHubSVG } from "../icons/github";
@@ -149,7 +152,7 @@ export function Thread() {
   );
   const [hideToolCalls, setHideToolCalls] = useQueryState(
     "hideToolCalls",
-    parseAsBoolean.withDefault(false),
+    parseAsBoolean.withDefault(true),
   );
   const [input, setInput] = useState("");
   const {
@@ -168,6 +171,7 @@ export function Thread() {
   const stream = useStreamContext();
   const messages = stream.messages;
   const isLoading = stream.isLoading;
+  const awaitingApproval = !!stream.interrupt;
 
   const lastError = useRef<string | undefined>(undefined);
 
@@ -223,7 +227,7 @@ export function Thread() {
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
-    if ((input.trim().length === 0 && contentBlocks.length === 0) || isLoading)
+    if ((input.trim().length === 0 && contentBlocks.length === 0) || isLoading || awaitingApproval)
       return;
     setFirstTokenReceived(false);
 
@@ -283,7 +287,9 @@ export function Thread() {
   );
 
   return (
-    <div className="flex h-screen w-full overflow-hidden">
+    <div className="flex h-screen w-full flex-col overflow-hidden">
+      <KorvaiTopBar />
+      <div className="flex min-h-0 w-full flex-1 overflow-hidden">
       <div className="relative hidden lg:flex">
         <motion.div
           className="absolute z-20 h-full overflow-hidden border-r bg-white"
@@ -311,7 +317,7 @@ export function Thread() {
 
       <div
         className={cn(
-          "grid w-full min-w-0 grid-cols-[1fr_0fr] overflow-hidden transition-all duration-500",
+          "grid min-w-0 flex-1 grid-cols-[1fr_0fr] overflow-hidden transition-all duration-500",
           artifactOpen && "grid-cols-[3fr_2fr]",
         )}
       >
@@ -352,9 +358,6 @@ export function Thread() {
                   </Button>
                 )}
               </div>
-              <div className="absolute top-2 right-4 flex items-center">
-                <OpenGitHubRepo />
-              </div>
             </div>
           )}
           {chatStarted && (
@@ -387,21 +390,10 @@ export function Thread() {
                     damping: 30,
                   }}
                 >
-                  <LangGraphLogoSVG
-                    width={32}
-                    height={32}
-                  />
-                  <span className="text-xl font-semibold tracking-tight">
-                    Agent Chat
-                  </span>
                 </motion.button>
-                <ConnectedHost apiUrl={stream.apiUrl} />
               </div>
 
               <div className="flex items-center gap-4">
-                <div className="flex items-center">
-                  <OpenGitHubRepo />
-                </div>
                 <TooltipIconButton
                   size="lg"
                   className="p-4"
@@ -427,6 +419,7 @@ export function Thread() {
               contentClassName="pt-8 pb-16 max-w-3xl mx-auto flex flex-col gap-4 w-full"
               content={
                 <>
+                  <ExecutionTrace />
                   {messages
                     .filter((m) => !m.id?.startsWith(DO_NOT_RENDER_ID_PREFIX))
                     .map((message, index) =>
@@ -464,10 +457,12 @@ export function Thread() {
                 <div className="sticky bottom-0 flex flex-col items-center gap-8 bg-white">
                   {!chatStarted && (
                     <div className="flex items-center gap-3">
-                      <LangGraphLogoSVG className="h-8 flex-shrink-0" />
-                      <h1 className="text-2xl font-semibold tracking-tight">
-                        Agent Chat
+                      <h1 className="font-serif text-3xl font-semibold tracking-tight">
+                        Korvai
                       </h1>
+                      <span className="text-sm text-gray-500">
+                        PMO Data Gap Audit · Methodology: IEM-PM
+                      </span>
                     </div>
                   )}
 
@@ -476,7 +471,7 @@ export function Thread() {
                   <div
                     ref={dropRef}
                     className={cn(
-                      "bg-muted relative z-10 mx-auto mb-8 w-full max-w-3xl rounded-2xl shadow-xs transition-all",
+                      "relative z-10 mx-auto mb-4 w-full max-w-3xl rounded border border-[#DCE1EA] bg-white shadow-sm transition-all",
                       dragOver
                         ? "border-primary border-2 border-dotted"
                         : "border border-solid",
@@ -507,7 +502,12 @@ export function Thread() {
                             form?.requestSubmit();
                           }
                         }}
-                        placeholder="Type your message..."
+                        disabled={awaitingApproval}
+                        placeholder={
+                          awaitingApproval
+                            ? "Answer the approval card above to continue."
+                            : "Type your message..."
+                        }
                         className="field-sizing-content resize-none border-none bg-transparent p-3.5 pb-0 shadow-none ring-0 outline-none focus:ring-0 focus:outline-none"
                       />
 
@@ -516,7 +516,7 @@ export function Thread() {
                           <div className="flex items-center space-x-2">
                             <Switch
                               id="render-tool-calls"
-                              checked={hideToolCalls ?? false}
+                              checked={hideToolCalls ?? true}
                               onCheckedChange={setHideToolCalls}
                             />
                             <Label
@@ -559,6 +559,7 @@ export function Thread() {
                             className="ml-auto shadow-md transition-all"
                             disabled={
                               isLoading ||
+                              awaitingApproval ||
                               (!input.trim() && contentBlocks.length === 0)
                             }
                           >
@@ -588,10 +589,12 @@ export function Thread() {
           </div>
         </div>
       </div>
-      <div className="h-screen w-80 shrink-0 overflow-y-auto overscroll-contain border-l bg-gray-50">
+      <div className="h-full w-96 shrink-0 overflow-y-auto overscroll-contain border-l bg-[#F6F7F9]">
         <MethodologyStepper />
         <MeasurePanel />
         <FindingsPanel />
+        <ReportPanel />
+      </div>
       </div>
     </div>
   );

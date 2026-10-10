@@ -309,7 +309,7 @@ export function ThreadActionsView({
   const interruptValue = singleActionInterrupt.value as HITLRequest;
 
   return (
-    <div className="flex min-h-full w-full max-w-full flex-col gap-9">
+    <div className="flex min-h-full w-full max-w-full flex-col gap-9 rounded-xl border-2 border-amber-500 bg-amber-50/40 p-4">
       <div className="flex w-full flex-wrap items-center justify-between gap-3">
         <div className="flex items-center justify-start gap-3">
           <p className="text-2xl tracking-tighter text-pretty">

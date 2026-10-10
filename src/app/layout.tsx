@@ -11,8 +11,8 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Agent Chat",
-  description: "Agent Chat UX by LangChain",
+  title: "Korvai — PMO Data Gap Audit",
+  description: "Delivery data audit. Methodology: IEM-PM",
 };
 
 export default function RootLayout({

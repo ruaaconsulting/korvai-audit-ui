@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Korvai — PMO Data Gap Audit (mockup)</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=Source+Serif+4:opsz,wght@8..60,500;8..60,600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#1F2A44; --muted:#5B6478; --line:#DCE1EA; --paper:#F6F7F9; --panel:#FFFFFF;
+    --verified:#1E7F74; --gap:#B3261E; --approve:#B86E00; --focus:#3558D4;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:"IBM Plex Sans",system-ui,sans-serif;color:var(--ink);background:var(--paper);font-size:14px;line-height:1.45}
+  header{display:flex;align-items:baseline;gap:14px;padding:14px 24px;background:var(--ink);color:#fff}
+  header .brand{font-family:"Source Serif 4",Georgia,serif;font-size:22px;font-weight:600}
+  header .credit{opacity:.75;font-size:13px}
+  header .keys{margin-left:auto;font-size:13px;opacity:.9}
+  header .keys b{color:#8FD9CE}
+  main{display:grid;grid-template-columns:280px 1fr 360px;gap:16px;padding:16px 24px;max-width:1500px;margin:0 auto}
+  section.col{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px;min-width:0}
+  h2{font-size:15px;margin:0 0 10px}
+  h3{font-size:13px;margin:16px 0 6px;color:var(--muted);font-weight:600}
+  .step{border-left:3px solid var(--line);padding:6px 0 10px 12px;margin-bottom:6px}
+  .step.done{border-color:var(--verified)}
+  .step .n{font-weight:600}
+  .step p{margin:2px 0 0;color:var(--muted);font-size:13px}
+  .file{display:flex;justify-content:space-between;background:var(--paper);border-radius:6px;padding:6px 8px;margin-top:6px;font-size:12px}
+  button{font:inherit;border-radius:6px;border:1px solid var(--ink);background:var(--ink);color:#fff;padding:8px 12px;cursor:pointer}
+  button.ghost{background:#fff;color:var(--ink)}
+  button:focus-visible{outline:3px solid var(--focus);outline-offset:2px}
+  .run{width:100%;margin-top:12px}
+  .log{display:flex;flex-direction:column;gap:10px}
+  .msg{padding:10px 12px;border-radius:8px;background:var(--paper)}
+  .msg.agent{background:#EEF2FA}
+  .msg small{display:block;color:var(--muted);font-size:12px;margin-bottom:2px}
+  .tool{font-size:12px;color:var(--muted);border:1px dashed var(--line);border-radius:6px;padding:6px 8px}
+  .approval{border:2px solid var(--approve);border-radius:10px;padding:12px;background:#FFF8EC}
+  .approval h4{margin:0 0 4px;color:var(--approve)}
+  .approval label{display:block;font-size:12px;margin-top:6px}
+  .approval input{width:100%;padding:6px;border:1px solid var(--line);border-radius:6px;font:inherit}
+  .approval .row{display:flex;gap:8px;margin-top:10px}
+  ol.stages{list-style:none;padding:0;margin:0}
+  ol.stages li{display:flex;gap:8px;padding:3px 0;font-size:13px}
+  ol.stages .i{width:16px;text-align:center}
+  .ok{color:var(--verified)} .wait{color:var(--approve)} .code{color:var(--muted)}
+  .grid{display:grid;grid-template-columns:auto repeat(4,1fr);gap:3px;font-size:11px;margin-top:6px}
+  .grid div{padding:4px;text-align:center;border-radius:4px;background:var(--paper)}
+  .grid .h{background:none;font-weight:600}
+  .grid .g{background:#FBE9E7;color:var(--gap);font-weight:600}
+  .grid .p{background:#E6F4F1;color:var(--verified)}
+  .finding{border:1px solid var(--line);border-radius:8px;padding:10px;margin-top:8px}
+  .finding .top{display:flex;justify-content:space-between;gap:6px;font-weight:600;font-size:13px}
+  .badge{font-size:11px;border-radius:4px;padding:1px 6px;font-weight:600}
+  .s3{background:#FFF4C7;color:#7A5B00} .s4{background:#FCE3C7;color:#8A4A00}
+  .finding p{margin:4px 0 0;font-size:12.5px}
+  .report{margin-top:14px;border-top:2px solid var(--ink);padding-top:12px}
+  .ris{display:flex;align-items:baseline;gap:8px}
+  .ris b{font-family:"Source Serif 4",Georgia,serif;font-size:44px;line-height:1}
+  .ris span{color:var(--muted)}
+  .report ul{padding-left:18px;margin:6px 0;font-size:12px;color:var(--muted)}
+  .actions{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+  .note{font-size:12px;color:var(--muted);margin-top:10px}
+  @media (max-width:1100px){main{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header>
+  <span class="brand">Korvai</span>
+  <span class="credit">PMO Data Gap Audit · Methodology: IEM-PM</span>
+  <span class="keys">Your keys: <b>OpenAI ✓</b> <b>Jev ✓</b> (this browser only)</span>
+</header>
+
+<main>
+  <!-- Left: set up -->
+  <section class="col" aria-label="Set up the audit">
+    <h2>Set up your audit</h2>
+    <div class="step done"><span class="n">1. Your keys</span><p>Held in this browser session only. Never stored or logged.</p></div>
+    <div class="step done"><span class="n">2. Baseline standard</span><p>The rules your data is audited against.</p>
+      <div class="file"><span>Northwind Risk Standard v1.0.pdf</span><span>3 clauses</span></div></div>
+    <div class="step done"><span class="n">3. Delivery evidence</span><p>Registers, schedules, status reports.</p>
+      <div class="file"><span>WNR-2026 Risk Register.xlsx</span><span>3 rows</span></div></div>
+    <div class="step"><span class="n">4. Charter (optional)</span><p>Without one, the audit runs as provisional.</p></div>
+    <button class="run">Run audit</button>
+    <button class="ghost run">Try the sample company</button>
+    <p class="note">Each run is private to you. Delete it any time.</p>
+  </section>
+
+  <!-- Center: live run -->
+  <section class="col" aria-label="Audit in progress">
+    <h2>Audit in progress</h2>
+    <div class="log">
+      <div class="msg"><small>You</small>Run a provisional audit of WNR-2026 against the Northwind Risk Standard.</div>
+      <div class="tool">Measure: 7 checks of each rule against each record (Jev)</div>
+      <div class="tool">Classify and rate 3 findings (Jev) · artifact checksum computed</div>
+      <div class="msg agent"><small>Korvai</small>Two findings are Severity 4 (Major). Under the methodology, a qualified person must approve them before the report is final.</div>
+
+      <div class="approval" role="group" aria-label="Approval required">
+        <h4>Your approval is needed</h4>
+        <div><b>Severity 4 · RS-3</b>: the risk register was last reviewed 14 March 2026, against a monthly review rule.</div>
+        <p class="note">Why: every Severity 4–5 finding needs explicit human approval before it is final (§10.2.3). The AI can never approve it. Rejecting stops the audit.</p>
+        <label>Your name<input value="" placeholder="Full name"></label>
+        <label>Your role<input value="" placeholder="e.g. PMO Director"></label>
+        <label>Date<input value="" placeholder="YYYY-MM-DD"></label>
+        <div class="row"><button onclick="this.closest('.approval').innerHTML='<b class=ok>✓ Approved. Recorded by the system, not the AI.</b>'">Approve finding</button><button class="ghost">Reject</button></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Right: methodology, findings, report -->
+  <section class="col" aria-label="Methodology and results">
+    <h2>Methodology trail</h2>
+    <ol class="stages">
+      <li><span class="i ok">✓</span>0 Baseline</li><li><span class="i ok">✓</span>1 Charter (provisional)</li>
+      <li><span class="i ok">✓</span>2 Define</li><li><span class="i ok">✓</span>3 Measure</li>
+      <li><span class="i ok">✓</span>4 Classify</li><li><span class="i ok">✓</span>5 Trace</li>
+      <li><span class="i ok">✓</span>6 Engineer &amp; score</li><li><span class="i wait">●</span>7 Synthesize: awaiting your approval</li>
+      <li><span class="i code">⚙</span>8 Findings JSON (code)</li><li><span class="i code">⚙</span>9 Render (code)</li><li><span class="i code">⚙</span>10 Final summary (code)</li>
+    </ol>
+
+    <h3>Measure: each rule against each record</h3>
+    <div class="grid" role="table" aria-label="Measure results">
+      <div class="h"></div><div class="h">R-001</div><div class="h">R-002</div><div class="h">R-003</div><div class="h">Register</div>
+      <div class="h">RS-1</div><div class="g">Gap</div><div class="p">Pass</div><div class="g">Gap</div><div>n/a</div>
+      <div class="h">RS-2</div><div class="g">Gap</div><div class="p">Pass</div><div class="p">Pass</div><div>n/a</div>
+      <div class="h">RS-3</div><div>n/a</div><div>n/a</div><div>n/a</div><div class="g">Gap</div>
+    </div>
+
+    <h3>Findings</h3>
+    <div class="finding"><div class="top">RS-1 Owners missing <span class="badge s3">Severity 3</span></div>
+      <p>Two open risks (R-001, R-003) have no named owner. Missing · Ownership.</p></div>
+    <div class="finding"><div class="top">RS-2 No mitigation <span class="badge s4">Severity 4 · approved</span></div>
+      <p>High-impact R-001 has no documented mitigation. Missing · Ownership.</p></div>
+    <div class="finding"><div class="top">RS-3 Review lapsed <span class="badge s4">Severity 4 · awaiting you</span></div>
+      <p>No review since March against a monthly rule. Ignored · Process / Cadence.</p></div>
+
+    <div class="report" aria-label="Report">
+      <h2>Report</h2>
+      <div class="ris"><b>68.0</b><span>Reporting Integrity Score, out of 100</span></div>
+      <ul>
+        <li>Calculated by code, never by the AI.</li>
+        <li>Not calibrated across organizations; describes evidence at a point in time.</li>
+      </ul>
+      <div class="actions"><button>Open full report</button><button class="ghost">Download TXT</button><button class="ghost">Download JSON</button></div>
+      <p class="note">Was a finding wrong? Tell us per finding. It improves the method.</p>
+    </div>
+  </section>
+</main>
+</body>
+</html>

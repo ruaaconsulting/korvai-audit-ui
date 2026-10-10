@@ -112,7 +112,7 @@ export function AssistantMessage({
   const contentString = getContentString(content);
   const [hideToolCalls] = useQueryState(
     "hideToolCalls",
-    parseAsBoolean.withDefault(false),
+    parseAsBoolean.withDefault(true),
   );
 
   const thread = useStreamContext();
@@ -161,7 +161,7 @@ export function AssistantMessage({
         ) : (
           <>
             {contentString.length > 0 && (
-              <div className="py-1">
+              <div className="rounded border border-[#DCE1EA] bg-white p-4 text-[13px] leading-relaxed text-[#121c2c] shadow-sm [&_h1]:mb-2 [&_h1]:text-[17px] [&_h1]:font-semibold [&_h1]:text-[#09152e] [&_h2]:mt-3 [&_h2]:mb-1 [&_h2]:text-[14px] [&_h2]:font-semibold [&_h2]:text-[#09152e] [&_h3]:text-[13px] [&_h3]:font-semibold [&_li]:my-0.5 [&_p]:my-1">
                 <MarkdownText>{contentString}</MarkdownText>
               </div>
             )}

@@ -5,6 +5,7 @@ import { useStreamContext } from "@/providers/Stream";
 import { HITLRequest } from "./types";
 import { StateView } from "./components/state-view";
 import { ThreadActionsView } from "./components/thread-actions-view";
+import { ApprovalCard, APPROVAL_ACTION } from "../../audit/ApprovalCard";
 
 interface ThreadViewProps {
   interrupt: Interrupt<HITLRequest> | Interrupt<HITLRequest>[];
@@ -54,6 +55,12 @@ export function ThreadView({ interrupt }: ThreadViewProps) {
 
   if (!activeInterrupt) {
     return null;
+  }
+
+  // Korvai: Severity 4–5 approvals use the compact approval card
+  const approvalRequests = activeInterrupt.value?.action_requests ?? [];
+  if (approvalRequests.length > 0 && approvalRequests.every((r) => r.name === APPROVAL_ACTION)) {
+    return <ApprovalCard requests={approvalRequests as any} />;
   }
 
   return (

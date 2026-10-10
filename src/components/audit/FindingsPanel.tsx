@@ -151,7 +151,7 @@ function ConfidenceBar({
 
 /* ───────────── Severity section (§9.1 official + Appendix D reference) ───────────── */
 
-function SeveritySection({ s }: { s: SeverityResult }) {
+function SeveritySection({ s, approved = false }: { s: SeverityResult; approved?: boolean }) {
     const threshold = s.threshold_used ?? 0.7;
     const c = s.calibration ?? {};
     const r = s.severity_runner_up;
@@ -174,7 +174,7 @@ function SeveritySection({ s }: { s: SeverityResult }) {
                 runner={r ? `${r.severity} ${r.label} (${pct(r.probability)})` : null}
             />
 
-            {s.human_approval_required && (
+            {s.human_approval_required && !approved && (
                 <div className="mt-2 rounded bg-orange-50 px-2 py-1 text-[11px] font-medium text-orange-800">
                     Severity 4–5: human approval required before this finding is final (§10.2.3)
                 </div>
@@ -335,101 +335,142 @@ export function FindingsPanel() {
         }
     }
 
-    if (order.length === 0) return null;
+    // Recorded human decisions (request_human_approval), matched to findings by rule
+  const reqToClause = new Map<string, string>();
+  const decisions = new Map<string, any>();
+  for (const message of stream.messages as any[]) {
+    if (message.type === "ai" && message.tool_calls) {
+      for (const call of message.tool_calls) {
+        if (call.name === "check_criterion" && call.args?.requirement && call.args?.clause_id) {
+          reqToClause.set(String(call.args.requirement).trim().toLowerCase(), String(call.args.clause_id));
+        }
+      }
+    }
+    if (message.type === "tool" && message.name === "request_human_approval") {
+      const parsed = parseResult<{ approvals?: any[] }>(message.content);
+      for (const d of parsed?.approvals ?? []) decisions.set(String(d.clause_id), d);
+    }
+  }
+  const approvalFor = (args: FindingArgs) =>
+    decisions.get(reqToClause.get(String(args.requirement ?? "").trim().toLowerCase()) ?? "");
 
-    return (
-        <div className="border-t p-4">
-            <h2 className="mb-3 text-sm font-semibold text-gray-900">
-                Findings ({order.length})
-            </h2>
-            <div className="space-y-3">
-                {order.map((key, i) => {
-                    const a = args.get(key) ?? {};
-                    const r = classify.get(key);
-                    const s = severity.get(key);
-                    const threshold = r?.threshold_used ?? 0.7;
-                    const needsReview = !!r?.needs_review || !!s?.needs_review;
-                    const gapRunner = runnerUpOf(r?.gap_type_probabilities, r?.gap_type);
-                    const rootRunner = runnerUpOf(r?.root_origin_probabilities, r?.root_origin);
+  if (order.length === 0) return null;
 
-                    return (
-                        <div key={key} className="rounded-lg border bg-white p-3 shadow-sm">
-                            <div className="flex items-start justify-between gap-2">
-                                <div className="text-xs font-semibold text-gray-900">
-                                    Finding {i + 1}
-                                </div>
-                                <div className="flex gap-1">
-                                    {s?.human_approval_required && (
-                                        <span className="rounded bg-orange-100 px-1.5 py-0.5 text-[10px] font-medium text-orange-800">
-                                            Approval required
-                                        </span>
-                                    )}
-                                    {needsReview && (
-                                        <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-800">
-                                            Needs review
-                                        </span>
-                                    )}
-                                </div>
-                            </div>
+  const clauseFor = (args: FindingArgs) =>
+    reqToClause.get(String(args.requirement ?? "").trim().toLowerCase()) ?? "";
 
-                            <div className="mt-1 text-[11px] text-gray-600">{a.requirement}</div>
-                            {a.observed && (
-                                <div className="mt-1 text-[11px] text-gray-800">
-                                    <span className="font-medium">Observed:</span> {a.observed}
-                                </div>
-                            )}
+  return (
+    <section className="m-3 flex flex-col gap-2 rounded border border-[#DCE1EA] bg-white p-3 shadow-sm">
+      <div className="flex items-center justify-between border-b border-[#DCE1EA] pb-1.5">
+        <h2 className="text-[13px] font-semibold text-[#09152e]">Classified findings</h2>
+        <span className="rounded bg-[#FCE3C7] px-1.5 py-0.5 text-[10px] font-bold text-[#8A4A00]">
+          {order.length} finding{order.length === 1 ? "" : "s"}
+        </span>
+      </div>
 
-                            {r && !r.error && <PmSummary a={a} r={r} s={s} />}
+      {order.map((key, i) => {
+        const a = args.get(key) ?? {};
+        const r = classify.get(key);
+        const s = severity.get(key);
+        const threshold = r?.threshold_used ?? 0.7;
+        const needsReview = !!r?.needs_review || !!s?.needs_review;
+        const gapRunner = runnerUpOf(r?.gap_type_probabilities, r?.gap_type);
+        const rootRunner = runnerUpOf(r?.root_origin_probabilities, r?.root_origin);
+        const decision = s?.human_approval_required ? approvalFor(a) : undefined;
+        const approved = decision?.decision === "approved";
+        const waiting = !!s?.human_approval_required && !decision;
+        const clause = clauseFor(a);
 
-                            {!r && (
-                                <div className="mt-2 animate-pulse text-xs text-blue-600">
-                                    Classifying with Jev…
-                                </div>
-                            )}
+        // One combined badge: severity, plus approval state where it applies
+        let badgeText = s && !s.error ? `Severity ${s.severity} · ${s.severity_label}` : "";
+        let badgeStyle = SEVERITY_STYLE[s?.severity ?? 0] ?? "bg-gray-100 text-gray-800";
+        if (s?.human_approval_required && approved) {
+          badgeText = `✓ Severity ${s.severity} · Approved`;
+          badgeStyle = "bg-[#E6F4F1] text-[#1E7F74]";
+        } else if (s?.human_approval_required && decision) {
+          badgeText = `Severity ${s.severity} · Not approved`;
+          badgeStyle = "bg-[#FBE9E7] text-[#B3261E]";
+        } else if (waiting) {
+          badgeText = `Severity ${s?.severity} · Awaiting you`;
+          badgeStyle = "bg-[#B86E00] text-white";
+        }
 
-                            {r?.error && (
-                                <div className="mt-2 rounded bg-red-50 p-2 text-[11px] text-red-700">
-                                    {r.message ?? r.error}
-                                </div>
-                            )}
-
-                            {r && !r.error && (
-                                <>
-                                    <ConfidenceBar
-                                        label={`Gap type: ${r.gap_type}`}
-                                        value={r.gap_type_confidence ?? 0}
-                                        threshold={threshold}
-                                        runner={gapRunner ? `${gapRunner.label} (${pct(gapRunner.probability)})` : null}
-                                    />
-                                    <ConfidenceBar
-                                        label={`Root origin: ${r.root_origin}`}
-                                        value={r.root_origin_confidence ?? 0}
-                                        threshold={threshold}
-                                        runner={rootRunner ? `${rootRunner.label} (${pct(rootRunner.probability)})` : null}
-                                    />
-                                </>
-                            )}
-
-                            {s?.error && (
-                                <div className="mt-2 rounded bg-red-50 p-2 text-[11px] text-red-700">
-                                    Severity: {s.message ?? s.error}
-                                </div>
-                            )}
-
-                            {s && !s.error && <SeveritySection s={s} />}
-
-                            {r && !r.error && (
-                                <div className="mt-2 flex flex-wrap gap-x-3 text-[10px] text-gray-500">
-                                    {r.evidence_verified && (
-                                        <span className="text-green-700">✓ Evidence verbatim</span>
-                                    )}
-                                    {r.classified_by && <span>{r.classified_by}</span>}
-                                </div>
-                            )}
-                        </div>
-                    );
-                })}
+        return (
+          <div
+            key={key}
+            className={`flex flex-col gap-1 rounded border p-2.5 ${
+              waiting ? "border-[#B86E00]/40 bg-[#FFF8EC]/60" : "border-[#DCE1EA] bg-[#F6F7F9]"
+            }`}
+          >
+            <div className="flex items-start justify-between gap-2">
+              <span className="text-[12px] font-bold text-[#09152e]">
+                {clause || `Finding ${i + 1}`}
+                {r && !r.error ? ` · ${r.gap_type}` : ""}
+              </span>
+              {badgeText && (
+                <span className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold ${badgeStyle}`}>
+                  {badgeText}
+                </span>
+              )}
             </div>
-        </div>
-    );
+
+            {a.observed && <p className="text-[12px] leading-snug text-gray-700">{a.observed}</p>}
+            {r && !r.error && (
+              <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-gray-600">
+                <span>Root origin: {r.root_origin}</span>
+                {needsReview && (
+                  <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-800">
+                    Needs review
+                  </span>
+                )}
+              </div>
+            )}
+
+            {decision && (
+              <div
+                className={`rounded px-2 py-1 text-[11px] font-medium ${
+                  approved ? "bg-[#E6F4F1] text-[#1E7F74]" : "bg-[#FBE9E7] text-[#B3261E]"
+                }`}
+              >
+                {approved
+                  ? `Approved by ${decision.approved_by} on ${decision.approval_date}`
+                  : `Not approved (${decision.decision})${decision.message ? ": " + decision.message : ""}`}
+              </div>
+            )}
+
+            {!r && <div className="animate-pulse text-xs text-blue-600">Classifying with Jev…</div>}
+            {r?.error && <div className="rounded bg-red-50 p-2 text-[11px] text-red-700">{r.message ?? r.error}</div>}
+            {s?.error && (
+              <div className="rounded bg-red-50 p-2 text-[11px] text-red-700">Severity: {s.message ?? s.error}</div>
+            )}
+
+            {r && !r.error && (
+              <details>
+                <summary className="cursor-pointer text-[11px] font-medium text-[#3558D4]">Details</summary>
+                <div className="mt-1 text-[11px] text-gray-600">{a.requirement}</div>
+                <PmSummary a={a} r={r} s={s} />
+                <ConfidenceBar
+                  label={`Gap type: ${r.gap_type}`}
+                  value={r.gap_type_confidence ?? 0}
+                  threshold={threshold}
+                  runner={gapRunner ? `${gapRunner.label} (${pct(gapRunner.probability)})` : null}
+                />
+                <ConfidenceBar
+                  label={`Root origin: ${r.root_origin}`}
+                  value={r.root_origin_confidence ?? 0}
+                  threshold={threshold}
+                  runner={rootRunner ? `${rootRunner.label} (${pct(rootRunner.probability)})` : null}
+                />
+                {s && !s.error && <SeveritySection s={s} approved={approved} />}
+                <div className="mt-2 flex flex-wrap gap-x-3 text-[10px] text-gray-500">
+                  {r.evidence_verified && <span className="text-[#1E7F74]">✓ Evidence verbatim</span>}
+                  {r.classified_by && <span>{r.classified_by}</span>}
+                </div>
+              </details>
+            )}
+          </div>
+        );
+      })}
+    </section>
+  );
 }
